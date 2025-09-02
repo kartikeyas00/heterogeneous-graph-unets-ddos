@@ -98,59 +98,6 @@ def normalize_features(df, feature_stats):
     return normalized_df
 
 
-def build_fold_graph_with_ip_port_source(train_df, val_df, test_df, feature_stats):
-    """Build a DGL graph for a single fold using already normalized data."""
-    df_combined = pd.concat([train_df, val_df, test_df], ignore_index=True)
-    
-    unique_ips_ports = (
-        set(df_combined[['Destination IP', 'Destination Port']].astype(str).apply('-'.join, axis=1)) |
-        set(df_combined[['Source IP', 'Source Port']].astype(str).apply('-'.join, axis=1))
-    )
-    ip_to_id = {ip: i for i, ip in enumerate(unique_ips_ports)}
-    
-    flow_ids = range(len(df_combined))
-    src_flows = list(flow_ids)
-    dst_flows = list(flow_ids)
-    
-    src_hosts = [
-        ip_to_id['-'.join(map(str, x))] 
-        for x in df_combined[['Source IP', 'Source Port']].values
-    ]
-    dst_hosts = [
-        ip_to_id['-'.join(map(str, x))] 
-        for x in df_combined[['Destination IP', 'Destination Port']].values
-    ]
-    
-    g = dgl.heterograph({
-        ('host', 'from_', 'flow'): (src_hosts, src_flows),
-        ('flow', 'to_', 'host'): (dst_flows, dst_hosts)
-    })
-    
-    feature_df = df_combined.drop(columns=[
-        'Flow ID', 'Source IP', 'Source Port', 'Destination IP',
-        'Destination Port', 'Protocol', 'Timestamp', 'Label'
-    ])
-    
-    g.nodes['flow'].data['feat'] = torch.FloatTensor(feature_df.values)
-    g.nodes['host'].data['feat'] = torch.ones((len(unique_ips_ports), feature_df.shape[1]))
-    g.nodes['flow'].data['label'] = torch.tensor(df_combined["Label"].values)
-    
-    # Create masks
-    train_mask = torch.zeros(len(df_combined), dtype=torch.bool)
-    val_mask = torch.zeros(len(df_combined), dtype=torch.bool)
-    test_mask = torch.zeros(len(df_combined), dtype=torch.bool)
-    
-    train_mask[:len(train_df)] = True
-    val_mask[len(train_df):len(train_df)+len(val_df)] = True
-    test_mask[len(train_df)+len(val_df):] = True
-    
-    g.nodes['flow'].data['train_mask'] = train_mask
-    g.nodes['flow'].data['val_mask'] = val_mask
-    g.nodes['flow'].data['test_mask'] = test_mask
-    
-    return g
-
-
 def build_fold_graph_with_ip_source(train_df, val_df, test_df, feature_stats):
     """Build a DGL graph for a single fold using already normalized data."""
     df_combined = pd.concat([train_df, val_df, test_df], ignore_index=True)

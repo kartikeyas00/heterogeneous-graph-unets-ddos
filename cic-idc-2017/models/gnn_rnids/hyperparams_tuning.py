@@ -56,7 +56,7 @@ def objective(trial, loaded_graph):
     config = {
         'in_feats_flow': 77,
         'in_feats_host': 77,
-        'hidden_size': trial.suggest_categorical('hidden_size', [64, 128, 256]),
+        'hidden_size': trial.suggest_categorical('hidden_size', [128, 256]),
         'num_classes': 1,
         'num_iterations': trial.suggest_categorical('num_iterations', [4, 8, 12]),
         'learning_rate': trial.suggest_loguniform('learning_rate', 1e-4, 1e-2),
