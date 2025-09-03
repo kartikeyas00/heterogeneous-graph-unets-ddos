@@ -123,15 +123,7 @@ def main():
     metrics_df.to_csv(metrics_file, index=False)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    node_in_dim = hyperparams['node_in_dim']
-    edge_in_dim = hyperparams['edge_in_dim']
-    out_dim = hyperparams['out_dim']
-    host_input_dim = hyperparams['host_input_dim']
-    flow_input_dim = hyperparams['flow_input_dim']
-    depth = hyperparams['depth']
-    pool_ratio = hyperparams['pool_ratio']
-    
+        
     accuracy_metric = torchmetrics.Accuracy(task="binary", threshold=0.5).to(device)
     precision_metric = torchmetrics.Precision(task="binary", threshold=0.5).to(device)
     recall_metric = torchmetrics.Recall(task="binary", threshold=0.5).to(device)
@@ -141,11 +133,7 @@ def main():
     final_kfolds_metrics = {}
     
     for i in range(1, args.k_folds + 1):
-        model = HeteroGraphUNet(node_in_dim, edge_in_dim, out_dim, host_input_dim, flow_input_dim, depth, pool_ratio)
-        model = model.to(device)
         
-        optimizer = torch.optim.Adam(model.parameters(), lr=hyperparams['learning_rate'])
-        criterion = nn.BCEWithLogitsLoss()
         
         accuracy_metric.reset()
         precision_metric.reset()
@@ -154,6 +142,37 @@ def main():
         
         with open(f"{args.graph_dir}/graph_fold_{i}.pickle", 'rb') as fp:
             g = pickle.load(fp)
+        
+        # Extract feature dimensions
+        in_feats_dict = {}
+        for ntype in g.ntypes:
+            in_feats = g.nodes[ntype].data['feat'].shape[1]
+            in_feats_dict[ntype] = in_feats
+
+        out_feats_dict = {
+            'flow': 1  # Binary classification for 'flow' nodes
+        }
+
+        # Get relation names and canonical edge types
+        rel_names = []
+        for src, etype, dst in g.canonical_etypes:
+            if etype not in rel_names:
+                rel_names.append(etype)
+        canonical_etypes = g.canonical_etypes
+
+        model = HeteroGraphUNet(
+            in_feats_dict=in_feats_dict,
+            hidden_feats=hyperparams['hidden_size'],
+            out_feats_dict=out_feats_dict,
+            rel_names=rel_names,
+            canonical_etypes=canonical_etypes,
+            depth=hyperparams['depth'],
+            pool_ratio=hyperparams['pool_ratio']
+        )
+        model = model.to(device)
+        
+        optimizer = torch.optim.Adam(model.parameters(), lr=hyperparams['learning_rate'])
+        criterion = nn.BCEWithLogitsLoss()
         
         train_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['train_mask']]
         test_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['test_mask']]

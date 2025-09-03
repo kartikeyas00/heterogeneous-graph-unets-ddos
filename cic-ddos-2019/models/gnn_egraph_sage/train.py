@@ -127,10 +127,10 @@ def main():
 
     for i in range(1, k_folds+1):
         model = EGraphSAGE(
-            node_in_dim=hyperparams['node_in_dim'],
-            edge_in_dim=hyperparams['edge_in_dim'], 
+            node_in_dim=128,
+            edge_in_dim=77, 
             hidden_dim=hyperparams['hidden_dim'],
-            num_classes=hyperparams['num_classes'],
+            num_classes=1,
             num_layers=hyperparams['num_layers']
         )
         model = model.to(device)

@@ -149,10 +149,10 @@ def train_fold(fold, train_graph, val_graph, hyperparams, device, args):
     
     # Create model
     model = GNN_NIDS(
-        in_feats_host=hyperparams['in_feats_host'],
-        in_feats_flow=hyperparams['in_feats_flow'],
+        in_feats_host=272,
+        in_feats_flow=272,
         hidden_size=hyperparams['hidden_size'],
-        num_classes=hyperparams['num_classes'],
+        num_classes=1,
         num_iterations=hyperparams['num_iterations']
     ).to(device)
     

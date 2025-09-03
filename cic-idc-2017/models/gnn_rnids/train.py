@@ -141,11 +141,11 @@ def main():
 
         # Initialize the model
         model = GNN_NIDS(
-            hyperparams['in_feats_host'], 
-            hyperparams['in_feats_flow'], 
-            hyperparams['hidden_size'], 
-            hyperparams['num_classes'], 
-            hyperparams['num_iterations']
+            in_feats_host=77,
+            in_feats_flow=77,
+            hidden_size=hyperparams['hidden_size'],
+            num_classes=1,
+            num_iterations=hyperparams['num_iterations']
         ).to(device)
 
         # Add weight initialization

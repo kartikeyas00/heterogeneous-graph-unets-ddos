@@ -93,8 +93,7 @@ def objective(trial, loaded_graph, loaded_class_weights, in_feats_dict, out_feat
         validation_data_loaders_dict[val_dataloader_key] = validation_dataloader
     
     # Initialize model
-    model = ImprovedHeteroGraphUNet(
-        # llm_embedding_dim=config['llm_embedding_dim'],
+    model = HeteroGraphUNet(
         in_feats_dict=in_feats_dict,
         hidden_feats=config['hidden_size'],
         out_feats_dict=out_feats_dict,

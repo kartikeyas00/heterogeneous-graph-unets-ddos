@@ -51,3 +51,8 @@ models/*/logging/checkpoints/
 # TensorBoard logs
 **/tensorboard/
 models/*/logging/tensorboard/
+
+# Config Files
+production_config.json
+local_config.json
+test_config.json

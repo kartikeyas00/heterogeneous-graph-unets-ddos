@@ -138,11 +138,11 @@ def main():
 
         # Initialize the model
         model = EGraphSAGE(
-            hyperparams['node_in_dim'], 
-            hyperparams['edge_in_dim'], 
-            hyperparams['hidden_dim'], 
-            hyperparams['num_classes'],
-            hyperparams['num_layers']
+            node_in_dim=128, 
+            edge_in_dim=77, 
+            hidden_dim=hyperparams['hidden_dim'], 
+            num_classes=hyperparams['num_classes'],
+            num_layers=hyperparams['num_layers']
         ).to(device)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=hyperparams['learning_rate'])

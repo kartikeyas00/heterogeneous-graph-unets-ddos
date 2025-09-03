@@ -105,7 +105,7 @@ def objective(trial, loaded_graph):
             subgraph = subgraph.to(device)
             optimizer.zero_grad()
             
-            logits = model(subgraph, subgraph.ndata['feat'])
+            logits = model(subgraph, subgraph.nodes['host'].data['feat'], subgraph.nodes['flow'].data['feat'])
             labels = subgraph.nodes['flow'].data['label'].float().to(device)
             
             loss = criterion(logits.squeeze(), labels)
@@ -127,8 +127,8 @@ def objective(trial, loaded_graph):
             
             for batch_flow_nodes, subgraph in validation_dataloader:
                 subgraph = subgraph.to(device)
-                
-                logits = model(subgraph, subgraph.ndata['feat'])
+
+                logits = model(subgraph, subgraph.nodes['host'].data['feat'], subgraph.nodes['flow'].data['feat'])
                 labels = subgraph.nodes['flow'].data['label'].float().to(device)
                 
                 loss = criterion(logits.squeeze(), labels)

@@ -122,10 +122,10 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    edge_in_dim = hyperparams['edge_in_dim']
-    node_in_dim = hyperparams['node_in_dim']
+    edge_in_dim = 272
+    node_in_dim = 272
     hidden_dim = hyperparams['hidden_dim']
-    num_classes = hyperparams['num_classes']
+    num_classes = 1
     num_layers = hyperparams['num_layers']
     
     accuracy_metric = torchmetrics.Accuracy(task="binary", threshold=0.5).to(device)
