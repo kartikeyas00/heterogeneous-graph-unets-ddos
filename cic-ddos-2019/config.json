@@ -1,0 +1,71 @@
+{
+  "preprocessing": {
+    "host_connection_graph": {
+      "enabled": true,
+      "input_path": "/path/to/cic-ddos-2019/cleaned_ml_features/features.csv",
+      "output_dir": "/path/to/cic-ddos-2019/host_connection_graph/normal/ip_as_hosts/no_added_malicious_ip/",
+      "class_ratio": 1.0,
+      "k_folds": 10,
+      "benign_label": "BENIGN"
+    },
+    "network_flow_graph": {
+      "enabled": true,
+      "input_path": "/path/to/cic-ddos-2019/cleaned_ml_features/features.csv",
+      "output_dir": "/path/to/cic-ddos-2019/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/",
+      "class_ratio": 1.0,
+      "k_folds": 10,
+      "benign_label": "BENIGN"
+    }
+  },
+  "models": {
+    "gnn_rnids": {
+      "enabled": true,
+      "hyperparameter_tuning": {
+        "optuna_dir": "/path/to/cic-ddos-2019/hyperparams_tuning_logs/gnn_rnids",
+        "graph_path": "/path/to/cic-ddos-2019/host_connection_graph/normal/ip_as_hosts/no_added_malicious_ip/graph_fold_0.pickle",
+        "n_trials": 200,
+        "study_name": "gnn_rnids_hyperopt"
+      },
+      "training": {
+        "graph_dir": "/path/to/cic-ddos-2019/host_connection_graph/normal/ip_as_hosts/no_added_malicious_ip/",
+        "log_dir": "/path/to/cic-ddos-2019/training_logs/gnn_rnids",
+        "epochs": 2000,
+        "k_folds": 10,
+        "patience": 100
+      }
+    },
+    "gnn_egraph_sage": {
+      "enabled": true,
+      "hyperparameter_tuning": {
+        "optuna_dir": "/path/to/cic-ddos-2019/hyperparams_tuning_logs/gnn_egraph_sage",
+        "graph_path": "/path/to/cic-ddos-2019/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/graph_fold_0.pickle",
+        "n_trials": 200,
+        "study_name": "gnn_egraph_sage_hyperopt"
+      },
+      "training": {
+        "graph_dir": "/path/to/cic-ddos-2019/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/",
+        "log_dir": "/path/to/cic-ddos-2019/training_logs/gnn_egraph_sage",
+        "epochs": 2000,
+        "k_folds": 10,
+        "patience": 100
+      }
+    },
+    "gnn_hetero_unet": {
+      "enabled": true,
+      "hyperparameter_tuning": {
+        "optuna_dir": "/path/to/cic-ddos-2019/hyperparams_tuning_logs/gnn_hetero_unet",
+        "graph_path": "/path/to/cic-ddos-2019/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/graph_fold_0.pickle",
+        "n_trials": 200,
+        "study_name": "gnn_hetero_unet_hyperopt"
+      },
+      "training": {
+        "graph_dir": "/path/to/cic-ddos-2019/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/",
+        "log_dir": "/path/to/cic-ddos-2019/training_logs/gnn_hetero_unet",
+        "epochs": 1000,
+        "k_folds": 10,
+        "patience": 50
+      }
+    }
+  },
+  "results_dir": "/path/to/cic-ddos-2019/results"
+}

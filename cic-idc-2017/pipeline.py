@@ -1,232 +1,345 @@
 #!/usr/bin/env python3
 """
-Comprehensive ML Pipeline for CIC-IDS-2017 DDoS Detection
-This script runs the complete pipeline from preprocessing to training for all models.
+Comprehensive Pipeline for CIC-IDC-2017 Dataset
+==============================================
+
+This pipeline automates the complete workflow for training and evaluating 
+graph neural network models on the CIC-IDC-2017 dataset.
+
+Workflow:
+1. Data preprocessing (host connection graph and/or network flow graph)
+2. Hyperparameter tuning (using Optuna)
+3. Model training with best hyperparameters
+4. Results collection and analysis
+
+Usage:
+    python pipeline.py --config config.json
+
+Config file should specify:
+- Input data path
+- Output directories
+- Models to run
+- Preprocessing options
+- Hyperparameter tuning settings
+- Training settings
 """
 
 import os
-import sys
-import argparse
-import subprocess
 import json
+import argparse
+import logging
+import datetime
+import subprocess
+import sys
 from pathlib import Path
-from datetime import datetime
 
+def setup_logging(log_dir):
+    """Setup logging configuration"""
+    os.makedirs(log_dir, exist_ok=True)
+    dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(log_dir, f"pipeline_{dt}.log")
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    return log_file
 
-def parse_args():
-    p = argparse.ArgumentParser(description="Run complete ML pipeline for CIC-IDS-2017 DDoS detection")
-    p.add_argument("--base-dir", type=str, required=True,
-                   help="Base directory for the project")
-    p.add_argument("--input-features", type=str, required=True,
-                   help="Path to input features CSV file")
-    p.add_argument("--output-base", type=str, required=True,
-                   help="Base output directory for all results")
-    p.add_argument("--n-trials", type=int, default=200,
-                   help="Number of Optuna trials for hyperparameter tuning")
-    p.add_argument("--epochs", type=int, default=1000,
-                   help="Number of training epochs")
-    p.add_argument("--k-folds", type=int, default=10,
-                   help="Number of K-folds")
-    p.add_argument("--patience", type=int, default=50,
-                   help="Early stopping patience")
-    p.add_argument("--skip-preprocessing", action="store_true",
-                   help="Skip preprocessing steps")
-    p.add_argument("--skip-hyperopt", action="store_true",
-                   help="Skip hyperparameter optimization")
-    p.add_argument("--only-model", choices=["gnn_rnids", "gnn_egraph_sage", "gnn_hetero_unet"],
-                   help="Run pipeline for only specified model")
-    return p.parse_args()
-
-
-def run_command(cmd, cwd=None, description=""):
-    print(f"\n{'='*60}")
-    print(f"Running: {description}")
-    print(f"Command: {' '.join(cmd)}")
-    print(f"Working directory: {cwd or os.getcwd()}")
-    print(f"{'='*60}")
+def run_command(cmd, description):
+    """Run a shell command and log the output"""
+    logging.info(f"Running: {description}")
+    logging.info(f"Command: {' '.join(cmd)}")
     
     try:
-        result = subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
-        print("SUCCESS")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         if result.stdout:
-            print("STDOUT:", result.stdout[-500:])
+            logging.info(f"Output: {result.stdout}")
         return True
     except subprocess.CalledProcessError as e:
-        print("FAILED")
-        print("STDERR:", e.stderr)
-        if e.stdout:
-            print("STDOUT:", e.stdout)
+        logging.error(f"Command failed with return code {e.returncode}")
+        logging.error(f"Error output: {e.stderr}")
         return False
 
+def preprocess_data(config):
+    """Run data preprocessing for graph construction"""
+    logging.info("=" * 60)
+    logging.info("STEP 1: DATA PREPROCESSING")
+    logging.info("=" * 60)
+    
+    preprocessing_configs = config.get('preprocessing', {})
+    base_dir = Path(__file__).parent
+    
+    for graph_type, graph_config in preprocessing_configs.items():
+        if not graph_config.get('enabled', False):
+            logging.info(f"Skipping {graph_type} preprocessing (disabled)")
+            continue
+            
+        logging.info(f"Running {graph_type} preprocessing...")
+        
+        preprocess_dir = base_dir / "preprocess" / graph_type
+        output_dir = graph_config['output_dir']
+        
+        cmd = [
+            sys.executable, 
+            str(preprocess_dir / "main.py"),
+            "--input-path", graph_config['input_path'],
+            "--output-dir", output_dir,
+            "--class-ratio", str(graph_config.get('class_ratio', 1.0)),
+            "--k-folds", str(graph_config.get('k_folds', 10)),
+            "--benign-label", graph_config.get('benign_label', 'Benign')
+        ]
+        
+        success = run_command(cmd, f"{graph_type} preprocessing")
+        if not success:
+            logging.error(f"Preprocessing failed for {graph_type}")
+            return False
+            
+        logging.info(f"Completed {graph_type} preprocessing")
+    
+    return True
 
-def ensure_dir(path):
-    Path(path).mkdir(parents=True, exist_ok=True)
+def run_hyperparameter_tuning(config):
+    """Run hyperparameter tuning for all enabled models"""
+    logging.info("=" * 60)
+    logging.info("STEP 2: HYPERPARAMETER TUNING")
+    logging.info("=" * 60)
+    
+    models_config = config.get('models', {})
+    base_dir = Path(__file__).parent
+    
+    for model_name, model_config in models_config.items():
+        if not model_config.get('enabled', False):
+            logging.info(f"Skipping {model_name} hyperparameter tuning (disabled)")
+            continue
+            
+        logging.info(f"Running hyperparameter tuning for {model_name}...")
+        
+        model_dir = base_dir / "models" / model_name
+        tuning_config = model_config['hyperparameter_tuning']
+        
+        cmd = [
+            sys.executable,
+            str(model_dir / "hyperparams_tuning.py"),
+            "--optuna-dir", tuning_config['optuna_dir'],
+            "--graph-path", tuning_config['graph_path'],
+            "--n-trials", str(tuning_config.get('n_trials', 200)),
+            "--study-name", tuning_config.get('study_name', f'{model_name}_hyperopt')
+        ]
+        
+        # Add optional class weight path if specified
+        if tuning_config.get('class_weight_path'):
+            cmd.extend(["--class-weight-path", tuning_config['class_weight_path']])
+        
+        success = run_command(cmd, f"{model_name} hyperparameter tuning")
+        if not success:
+            logging.error(f"Hyperparameter tuning failed for {model_name}")
+            return False
+            
+        logging.info(f"Completed hyperparameter tuning for {model_name}")
+    
+    return True
 
+def run_training(config):
+    """Run training for all enabled models with best hyperparameters"""
+    logging.info("=" * 60)
+    logging.info("STEP 3: MODEL TRAINING")
+    logging.info("=" * 60)
+    
+    models_config = config.get('models', {})
+    base_dir = Path(__file__).parent
+    
+    for model_name, model_config in models_config.items():
+        if not model_config.get('enabled', False):
+            logging.info(f"Skipping {model_name} training (disabled)")
+            continue
+            
+        logging.info(f"Running training for {model_name}...")
+        
+        model_dir = base_dir / "models" / model_name
+        training_config = model_config['training']
+        
+        # Path to best hyperparameters from tuning
+        hyperparams_path = os.path.join(
+            model_config['hyperparameter_tuning']['optuna_dir'],
+            'best_hyperparams.json'
+        )
+        
+        cmd = [
+            sys.executable,
+            str(model_dir / "train.py"),
+            "--graph-dir", training_config['graph_dir'],
+            "--hyperparams-path", hyperparams_path,
+            "--log-dir", training_config['log_dir'],
+            "--epochs", str(training_config.get('epochs', 1000)),
+            "--k-folds", str(training_config.get('k_folds', 10)),
+            "--patience", str(training_config.get('patience', 100))
+        ]
+        
+        success = run_command(cmd, f"{model_name} training")
+        if not success:
+            logging.error(f"Training failed for {model_name}")
+            return False
+            
+        logging.info(f"Completed training for {model_name}")
+    
+    return True
+
+def collect_results(config):
+    """Collect and summarize results from all experiments"""
+    logging.info("=" * 60)
+    logging.info("STEP 4: RESULTS COLLECTION")
+    logging.info("=" * 60)
+    
+    results_dir = config.get('results_dir', 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    
+    models_config = config.get('models', {})
+    
+    # Collect hyperparameter tuning results
+    hyperopt_results = {}
+    for model_name, model_config in models_config.items():
+        if not model_config.get('enabled', False):
+            continue
+            
+        optuna_dir = model_config['hyperparameter_tuning']['optuna_dir']
+        hyperparams_file = os.path.join(optuna_dir, 'best_hyperparams.json')
+        
+        if os.path.exists(hyperparams_file):
+            with open(hyperparams_file, 'r') as f:
+                hyperopt_results[model_name] = json.load(f)
+    
+    # Save hyperparameter results
+    hyperopt_summary_path = os.path.join(results_dir, 'hyperparameter_results.json')
+    with open(hyperopt_summary_path, 'w') as f:
+        json.dump(hyperopt_results, f, indent=2)
+    
+    logging.info(f"Hyperparameter results saved to: {hyperopt_summary_path}")
+    
+    # Collect training results
+    training_results = {}
+    for model_name, model_config in models_config.items():
+        if not model_config.get('enabled', False):
+            continue
+            
+        log_dir = model_config['training']['log_dir']
+        summary_file = os.path.join(log_dir, 'training_summary.json')
+        
+        if os.path.exists(summary_file):
+            with open(summary_file, 'r') as f:
+                training_results[model_name] = json.load(f)
+    
+    # Save training results
+    training_summary_path = os.path.join(results_dir, 'training_results.json')
+    with open(training_summary_path, 'w') as f:
+        json.dump(training_results, f, indent=2)
+    
+    logging.info(f"Training results saved to: {training_summary_path}")
+    
+    # Print summary
+    logging.info("\n" + "=" * 60)
+    logging.info("FINAL RESULTS SUMMARY")
+    logging.info("=" * 60)
+    
+    for model_name, results in training_results.items():
+        if 'mean_f1' in results:
+            mean_f1 = results['mean_f1']
+            std_f1 = results['std_f1']
+            logging.info(f"{model_name}: F1 = {mean_f1:.4f} ± {std_f1:.4f}")
+    
+    return True
+
+def validate_config(config):
+    """Validate the configuration file"""
+    required_sections = ['preprocessing', 'models']
+    for section in required_sections:
+        if section not in config:
+            logging.error(f"Missing required section in config: {section}")
+            return False
+    
+    # Validate that at least one preprocessing or model is enabled
+    preprocessing_enabled = any(
+        cfg.get('enabled', False) for cfg in config.get('preprocessing', {}).values()
+    )
+    models_enabled = any(
+        cfg.get('enabled', False) for cfg in config.get('models', {}).values()
+    )
+    
+    if not preprocessing_enabled and not models_enabled:
+        logging.error("No preprocessing steps or models are enabled in config")
+        return False
+    
+    return True
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__, 
+                                   formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--config", type=str, required=True,
+                       help="Path to the configuration JSON file")
+    parser.add_argument("--skip-preprocessing", action='store_true',
+                       help="Skip preprocessing step")
+    parser.add_argument("--skip-hyperparameter-tuning", action='store_true',
+                       help="Skip hyperparameter tuning step")  
+    parser.add_argument("--skip-training", action='store_true',
+                       help="Skip training step")
+    parser.add_argument("--log-dir", type=str, default="pipeline_logs",
+                       help="Directory for pipeline logs")
+    return parser.parse_args()
 
 def main():
     args = parse_args()
     
-    base_dir = Path(args.base_dir)
-    output_base = Path(args.output_base)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Setup logging
+    log_file = setup_logging(args.log_dir)
     
-    graphs_dir = output_base / "graphs"
-    logs_dir = output_base / "logs" / timestamp
-    hyperparams_dir = output_base / "hyperparams"
+    logging.info("=" * 60)
+    logging.info("CIC-IDC-2017 PIPELINE")
+    logging.info("=" * 60)
     
-    ensure_dir(graphs_dir)
-    ensure_dir(logs_dir)
-    ensure_dir(hyperparams_dir)
-    
-    host_graphs_dir = graphs_dir / "host_connection_graph"
-    network_graphs_dir = graphs_dir / "network_flow_graph"
-    
-    print(f"Starting ML Pipeline for CIC-IDS-2017")
-    print(f"Base directory: {base_dir}")
-    print(f"Input features: {args.input_features}")
-    print(f"Output base: {output_base}")
-    print(f"Timestamp: {timestamp}")
-    
-    success_count = 0
-    total_steps = 0
-    
-    if not args.skip_preprocessing:
-        total_steps += 1
-        print(f"\nStep 1: Preprocessing Host Connection Graph")
-        cmd = [
-            sys.executable, "main.py",
-            "--input-path", args.input_features,
-            "--output-dir", str(host_graphs_dir),
-            "--n-splits", str(args.k_folds)
-        ]
-        if run_command(cmd, cwd=base_dir / "preprocess" / "host_connection_graph", 
-                      description="Host Connection Graph Preprocessing"):
-            success_count += 1
-    
-    if not args.skip_preprocessing:
-        total_steps += 1
-        print(f"\nStep 2: Preprocessing Network Flow Graph")
-        cmd = [
-            sys.executable, "main.py",
-            "--input-path", args.input_features,
-            "--output-dir", str(network_graphs_dir),
-            "--n-splits", str(args.k_folds)
-        ]
-        if run_command(cmd, cwd=base_dir / "preprocess" / "network_flow_graph",
-                      description="Network Flow Graph Preprocessing"):
-            success_count += 1
-    
-    models_to_run = []
-    if args.only_model:
-        models_to_run = [args.only_model]
-    else:
-        models_to_run = ["gnn_rnids", "gnn_egraph_sage", "gnn_hetero_unet"]
-    
-    for model_name in models_to_run:
-        if model_name in ["gnn_rnids", "gnn_hetero_unet"]:
-            graph_dir = host_graphs_dir
-            graph_path = host_graphs_dir / "graph_fold_1.pickle"
-        else:
-            graph_dir = network_graphs_dir
-            graph_path = network_graphs_dir / "graph_fold_1.pickle"
-        
-        model_logs_dir = logs_dir / model_name
-        model_hyperparams_dir = hyperparams_dir / model_name
-        ensure_dir(model_logs_dir)
-        ensure_dir(model_hyperparams_dir)
-        
-        if not args.skip_hyperopt:
-            total_steps += 1
-            print(f"\nHyperparameter Tuning for {model_name.upper()}")
-            cmd = [
-                sys.executable, "hyperparams_tuning.py",
-                "--optuna-dir", str(model_hyperparams_dir),
-                "--graph-path", str(graph_path),
-                "--n-trials", str(args.n_trials),
-                "--study-name", f"{model_name}_study"
-            ]
-            if run_command(cmd, cwd=base_dir / "models" / model_name,
-                          description=f"Hyperparameter tuning for {model_name}"):
-                success_count += 1
-                
-        
-        total_steps += 1
-        print(f"\nTraining {model_name.upper()}")
-        
-        hyperparams_path = model_hyperparams_dir / "best_hyperparams.json"
-        if not hyperparams_path.exists() and not args.skip_hyperopt:
-            print(f"Hyperparameters not found for {model_name}, skipping training")
-            continue
-        elif not hyperparams_path.exists():
-            if model_name == "gnn_rnids":
-                default_params = {
-                    "in_feats_flow": 77,
-                    "in_feats_host": 77,
-                    "hidden_size": 128,
-                    "num_classes": 1,
-                    "num_iterations": 4,
-                    "learning_rate": 0.001,
-                    "flow_nodes_batch_size": 300,
-                    "batch_size_train": 16,
-                    "batch_size_test": 64
-                }
-            elif model_name == "gnn_egraph_sage":
-                default_params = {
-                    "node_in_dim": 128,
-                    "edge_in_dim": 77,
-                    "hidden_dim": 128,
-                    "num_classes": 1,
-                    "num_layers": 6,
-                    "learning_rate": 0.001,
-                    "edge_batch_size": 300,
-                    "batch_size_train": 16,
-                    "batch_size_test": 64
-                }
-            else:
-                default_params = {
-                    "hidden_feats": 128,
-                    "learning_rate": 0.001,
-                    "flow_batch_size": 300,
-                    "batch_size_train": 16,
-                    "batch_size_validation": 64,
-                    "max_connected_flows": 30,
-                    "depth": 3,
-                    "pool_ratio": 0.5
-                }
-            
-            with open(hyperparams_path, 'w') as f:
-                json.dump(default_params, f, indent=4)
-            print(f"Created default hyperparameters for {model_name}")
-        
-        cmd = [
-            sys.executable, "train.py",
-            "--graph-dir", str(graph_dir),
-            "--hyperparams-path", str(hyperparams_path),
-            "--log-dir", str(model_logs_dir),
-            "--epochs", str(args.epochs),
-            "--k-folds", str(args.k_folds),
-            "--patience", str(args.patience)
-        ]
-        
-        if run_command(cmd, cwd=base_dir / "models" / model_name,
-                      description=f"Training {model_name}"):
-            success_count += 1
-    
-    print(f"\n{'='*60}")
-    print(f"Pipeline Completed!")
-    print(f"Success: {success_count}/{total_steps} steps")
-    print(f"Results saved to: {output_base}")
-    print(f"Logs: {logs_dir}")
-    print(f"Hyperparameters: {hyperparams_dir}")
-    
-    if success_count == total_steps:
-        print("All steps completed successfully!")
-        return 0
-    else:
-        print(f"{total_steps - success_count} steps failed")
+    # Load configuration
+    try:
+        with open(args.config, 'r') as f:
+            config = json.load(f)
+    except Exception as e:
+        logging.error(f"Failed to load config file: {e}")
         return 1
-
+    
+    # Validate configuration
+    if not validate_config(config):
+        return 1
+    
+    logging.info(f"Loaded configuration from: {args.config}")
+    logging.info(f"Pipeline logs saved to: {log_file}")
+    
+    # Run pipeline steps
+    if not args.skip_preprocessing:
+        if not preprocess_data(config):
+            logging.error("Preprocessing failed. Stopping pipeline.")
+            return 1
+    
+    if not args.skip_hyperparameter_tuning:
+        if not run_hyperparameter_tuning(config):
+            logging.error("Hyperparameter tuning failed. Stopping pipeline.")
+            return 1
+    
+    if not args.skip_training:
+        if not run_training(config):
+            logging.error("Training failed. Stopping pipeline.")
+            return 1
+    
+    # Collect results
+    if not collect_results(config):
+        logging.error("Results collection failed.")
+        return 1
+    
+    logging.info("=" * 60)
+    logging.info("PIPELINE COMPLETED SUCCESSFULLY!")
+    logging.info("=" * 60)
+    
+    return 0
 
 if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
+    sys.exit(main())
