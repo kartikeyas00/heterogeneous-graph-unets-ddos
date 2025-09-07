@@ -10,7 +10,7 @@ import datetime
 import json
 import torchmetrics
 from model import HeteroGraphUNet
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 
 def parse_args():
@@ -141,7 +141,7 @@ def main():
     checkpoint_dir = os.path.join(args.log_dir, 'checkpoints')
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    hyperparams = load_hyperparams(args.best_params_path)
+    hyperparams = load_hyperparams(args.hyperparams_path)
 
     # ============================
     # Training Loop with Enhanced Logging
@@ -204,8 +204,8 @@ def main():
         test_batches = [test_flow_nodes[i:i + hyperparams['flow_batch_size']] for i in range(0, len(train_flow_nodes), hyperparams['flow_batch_size'])]
         test_batches = [batch for batch in test_batches if len(batch) == hyperparams['flow_batch_size']]
 
-        train_dataloader = create_datalaoder(g, train_batches, hyperparams['batch_size_train'], True, max_connected_flows=hyperparams['max_connected_flows'])
-        test_dataloader = create_datalaoder(g, test_batches, hyperparams['batch_size_validation'], False, max_connected_flows=hyperparams['max_connected_flows'])
+        train_dataloader = create_dataloader(g, train_batches, hyperparams['batch_size_train'], True, max_connected_flows=hyperparams['max_connected_flows'])
+        test_dataloader = create_dataloader(g, test_batches, hyperparams['batch_size_validation'], False, max_connected_flows=hyperparams['max_connected_flows'])
 
         best_f1 = 0
         early_stopping_patience = args.patience

@@ -46,7 +46,7 @@ def train_epoch(epoch, train_dataloader, model, optimizer, criterion, device, lo
         node_features = subgraph.ndata['feat'].to(device)
         labels = subgraph.edata['label'].float().to(device)
         
-        logits = model(subgraph, node_features, edge_features)
+        logits = model(subgraph)
         loss = criterion(logits.squeeze(), labels)
         
         optimizer.zero_grad()
@@ -78,7 +78,7 @@ def evaluate(epoch, test_dataloader, model, criterion, accuracy_metric, precisio
             node_features = subgraph.ndata['feat'].to(device)
             labels = subgraph.edata['label'].float().to(device)
             
-            logits = model(subgraph, node_features, edge_features)
+            logits = model(subgraph)
             loss = criterion(logits.squeeze(), labels)
             eval_loss += loss.item()
             
@@ -123,7 +123,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     edge_in_dim = 272
-    node_in_dim = 272
+    node_in_dim = 128
     hidden_dim = hyperparams['hidden_dim']
     num_classes = 1
     num_layers = hyperparams['num_layers']
@@ -137,7 +137,7 @@ def main():
     final_kfolds_metrics = {}
     
     for i in range(1, args.k_folds + 1):
-        model = EGraphSAGE(edge_in_dim, node_in_dim, hidden_dim, num_classes, num_layers)
+        model = EGraphSAGE(node_in_dim, edge_in_dim, hidden_dim, num_classes, num_layers)
         model = model.to(device)
         
         optimizer = torch.optim.Adam(model.parameters(), lr=hyperparams['learning_rate'])
@@ -151,8 +151,9 @@ def main():
         with open(f"{args.graph_dir}/graph_fold_{i}.pickle", 'rb') as fp:
             g = pickle.load(fp)
         
-        train_edges_eid = g.edges()[2][g.edata['train_mask']]
-        test_edges_eid = g.edges()[2][g.edata['test_mask']]
+        train_edges_eid = torch.arange(len(g.edata['train_mask']))[g.edata['train_mask']]
+        test_edges_eid = torch.arange(len(g.edata['test_mask']))[g.edata['test_mask']]
+
         
         train_batches = [train_edges_eid[j:j + hyperparams['edge_batch_size']] 
                         for j in range(0, len(train_edges_eid), hyperparams['edge_batch_size'])]

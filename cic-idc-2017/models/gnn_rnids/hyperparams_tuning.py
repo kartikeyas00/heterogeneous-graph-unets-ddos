@@ -12,7 +12,7 @@ from optuna.samplers import TPESampler
 from optuna.pruners import MedianPruner
 import time
 from model import GNN_NIDS
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -35,7 +35,7 @@ def create_train_dataloader(g, config):
     train_batches = [train_flow_nodes[i:i + config['flow_nodes_batch_size']] for i in range(0, len(train_flow_nodes), config['flow_nodes_batch_size'])]
     # Filter out small batches
     train_batches = [batch for batch in train_batches if len(batch) == config['flow_nodes_batch_size']]
-    return create_datalaoder(g, train_batches, config['batch_size_train'], False)
+    return create_dataloader(g, train_batches, config['batch_size_train'], False)
 
 def create_validation_dataloader(g, config):
     # Get flow nodes with validation mask
@@ -44,7 +44,7 @@ def create_validation_dataloader(g, config):
     val_batches = [val_flow_nodes[i:i + config['flow_nodes_batch_size']] for i in range(0, len(val_flow_nodes), config['flow_nodes_batch_size'])]
     # Filter out small batches
     val_batches = [batch for batch in val_batches if len(batch) == config['flow_nodes_batch_size']]
-    return create_datalaoder(g, val_batches, config['batch_size_test'], False)
+    return create_dataloader(g, val_batches, config['batch_size_test'], False)
 
 
 # Cache for dataloaders to avoid recreating them

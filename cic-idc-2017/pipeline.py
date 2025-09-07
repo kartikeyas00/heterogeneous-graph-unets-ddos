@@ -32,6 +32,7 @@ import datetime
 import subprocess
 import sys
 from pathlib import Path
+import pandas as pd
 
 def setup_logging(log_dir):
     """Setup logging configuration"""
@@ -89,8 +90,7 @@ def preprocess_data(config):
             "--input-path", graph_config['input_path'],
             "--output-dir", output_dir,
             "--class-ratio", str(graph_config.get('class_ratio', 1.0)),
-            "--k-folds", str(graph_config.get('k_folds', 10)),
-            "--benign-label", graph_config.get('benign_label', 'Benign')
+            "--n-splits", str(graph_config.get('k_folds', 10)),
         ]
         
         success = run_command(cmd, f"{graph_type} preprocessing")
@@ -188,6 +188,21 @@ def run_training(config):
     
     return True
 
+
+def get_aggregated_results(model_name, results_json):
+
+    df_results = pd.read_json(results_json)
+    mean_results = df_results.T.mean()
+    mean_results_dict = {f'{k} Mean':v for k,v in  mean_results.to_dict().items()}
+    std_results = df_results.T.std()
+    std_results_dict = {f'{k} Std':v for k,v in  std_results.to_dict().items()}
+    df = pd.DataFrame({**mean_results_dict, **std_results_dict}, index=[model_name])
+    df['Model'] = model_name
+    df = df[['Model', 'Final Accuracy Mean', 'Final Accuracy Std', 'Final F1 Score Mean', 'Final F1 Score Std',
+             'Final Precision Mean', 'Final Precision Std', 'Final Recall Mean', 'Final Recall Std']]
+
+    return df
+
 def collect_results(config):
     """Collect and summarize results from all experiments"""
     logging.info("=" * 60)
@@ -220,35 +235,22 @@ def collect_results(config):
     logging.info(f"Hyperparameter results saved to: {hyperopt_summary_path}")
     
     # Collect training results
-    training_results = {}
+    df_final_resuls = pd.DataFrame()
     for model_name, model_config in models_config.items():
         if not model_config.get('enabled', False):
             continue
             
         log_dir = model_config['training']['log_dir']
-        summary_file = os.path.join(log_dir, 'training_summary.json')
+        summary_file = os.path.join(log_dir, 'final_metrics.json')
         
         if os.path.exists(summary_file):
-            with open(summary_file, 'r') as f:
-                training_results[model_name] = json.load(f)
-    
+            df_final_resuls = pd.concat([df_final_resuls, get_aggregated_results(model_name, summary_file)], ignore_index=True)
+
     # Save training results
-    training_summary_path = os.path.join(results_dir, 'training_results.json')
-    with open(training_summary_path, 'w') as f:
-        json.dump(training_results, f, indent=2)
-    
+    training_summary_path = os.path.join(results_dir, 'training_results.csv')
+    df_final_resuls.to_csv(training_summary_path, index=False)
+
     logging.info(f"Training results saved to: {training_summary_path}")
-    
-    # Print summary
-    logging.info("\n" + "=" * 60)
-    logging.info("FINAL RESULTS SUMMARY")
-    logging.info("=" * 60)
-    
-    for model_name, results in training_results.items():
-        if 'mean_f1' in results:
-            mean_f1 = results['mean_f1']
-            std_f1 = results['std_f1']
-            logging.info(f"{model_name}: F1 = {mean_f1:.4f} ± {std_f1:.4f}")
     
     return True
 

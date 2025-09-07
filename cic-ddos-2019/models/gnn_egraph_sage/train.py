@@ -33,6 +33,10 @@ def setup_logging(log_dir):
 def load_hyperparams(path):
     with open(path) as f:
         return json.load(f)
+    
+def load_class_weight(path):
+    with open(path, 'rb') as fp:
+        return pickle.load(fp)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -42,7 +46,14 @@ recall_metric = torchmetrics.Recall(task="binary",threshold=0.5).to(device)
 f1_metric = torchmetrics.F1Score(task="binary",threshold=0.5).to(device)
 confmat_metric = torchmetrics.ConfusionMatrix(task="binary", num_classes=2).to(device)
 
-def train(model, epoch, optimizer, criterion, train_dataloader):
+def train(model, epoch, optimizer, criterion, train_dataloader, class_weight):
+
+
+    benign_weight = class_weight[0]
+    ddos_weight = class_weight[1]
+    pos_weight = torch.tensor([ddos_weight / benign_weight], dtype=torch.float32).to(device)
+
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     model.train()
     epoch_loss = 0
     start_time = time.time()
@@ -66,7 +77,8 @@ def train(model, epoch, optimizer, criterion, train_dataloader):
     
     return epoch_loss
 
-def evaluate(model, epoch, criterion, test_dataloader):
+def evaluate(model, test_dataloader):
+    criterion = nn.BCEWithLogitsLoss()
     model.eval()
     eval_loss = 0
     accuracy_metric.reset()
@@ -136,7 +148,7 @@ def main():
         model = model.to(device)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=hyperparams['learning_rate'])
-        criterion = nn.BCEWithLogitsLoss()
+        # criterion = nn.BCEWithLogitsLoss()
 
         accuracy_metric.reset()
         precision_metric.reset()
@@ -145,6 +157,8 @@ def main():
 
         with open(f"{args.graph_dir}/graph_fold_{i}.pickle", 'rb') as fp:
             g = pickle.load(fp)
+        
+        class_weight = load_class_weight(f"{args.graph_dir}/class_weights_fold_{i}.pickle")
 
         train_edges_eid = torch.arange(len(g.edata['train_mask']))[g.edata['train_mask']]
         test_edges_eid = torch.arange(len(g.edata['test_mask']))[g.edata['test_mask']]
@@ -166,7 +180,7 @@ def main():
         for epoch in range(1, args.epochs + 1):
             epoch_start_time = time.time()
             
-            train_loss = train(model, epoch, optimizer, criterion, train_dataloader)
+            train_loss = train(model, epoch, optimizer, criterion, train_dataloader, class_weight)
             
             if epoch % 5 == 0:
                 acc, prec, rec, f1, eval_loss, tp, fp, fn, tn = evaluate(model, epoch, criterion, test_dataloader)

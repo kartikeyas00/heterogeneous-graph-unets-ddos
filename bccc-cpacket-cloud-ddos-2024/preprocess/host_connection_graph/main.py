@@ -89,7 +89,7 @@ def main():
         )
         
         # Save graph
-        graph_fold_path = Path(args.output_dir) / f'graph_fold_{fold_idx}.pickle'
+        graph_fold_path = Path(args.output_dir) / f'graph_fold_{fold_idx+1}.pickle'
         with open(graph_fold_path, 'wb') as fp:
             pickle.dump(graph, fp)
         

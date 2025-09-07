@@ -12,7 +12,7 @@ from optuna.samplers import TPESampler
 from optuna.pruners import MedianPruner
 import time
 from model import GNN_NIDS
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -20,6 +20,8 @@ def parse_args():
                    help="Directory to store Optuna logs & DB")
     p.add_argument("--graph-path", type=str, required=True,
                    help="Path to one fold's graph .pickle")
+    p.add_argument("--class-weight-path",        type=str, required=False, default=None,
+                   help="Path to one fold’s class weight .pickle")
     p.add_argument("--n-trials", type=int, default=100)
     p.add_argument("--study-name", type=str, default="gnn_rnids")
     return p.parse_args()
@@ -27,25 +29,31 @@ def parse_args():
 def load_graph(path):
     with open(path, 'rb') as fp:
         return pickle.load(fp)
+    
+
+def load_class_weight(path):
+    with open(path, 'rb') as fp:
+        return pickle.load(fp)
+
 
 def create_train_dataloader(g, config):
     val_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['train_mask']]
     val_batches = [val_flow_nodes[i:i + config['flow_nodes_batch_size']] 
                    for i in range(0, len(val_flow_nodes), config['flow_nodes_batch_size'])]
     val_batches = [batch for batch in val_batches if len(batch) == config['flow_nodes_batch_size']]
-    return create_datalaoder(g, val_batches, config['batch_size_train'], False)
+    return create_dataloader(g, val_batches, config['batch_size_train'], False)
 
 def create_validation_dataloader(g, config):
     val_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['val_mask']]
     val_batches = [val_flow_nodes[i:i + config['flow_nodes_batch_size']] 
                    for i in range(0, len(val_flow_nodes), config['flow_nodes_batch_size'])]
     val_batches = [batch for batch in val_batches if len(batch) == config['flow_nodes_batch_size']]
-    return create_datalaoder(g, val_batches, config['batch_size_test'], False)
+    return create_dataloader(g, val_batches, config['batch_size_test'], False)
 
 train_data_loaders_dict = {}
 validation_data_loaders_dict = {}
 
-def objective(trial, loaded_graph):
+def objective(trial, loaded_graph, loaded_class_weights):
     config = {
         'in_feats_flow': 77,
         'in_feats_host': 77,
@@ -54,8 +62,8 @@ def objective(trial, loaded_graph):
         'num_iterations': trial.suggest_categorical('num_iterations', [4, 8, 12]),
         'learning_rate': trial.suggest_loguniform('learning_rate', 1e-4, 1e-2),
         'flow_nodes_batch_size': trial.suggest_categorical('flow_nodes_batch_size', [100, 200, 300]),
-        'batch_size_train': trial.suggest_categorical('batch_size_train', [16, 32, 64]),
-        'batch_size_test': trial.suggest_categorical('batch_size_test', [16, 32, 64]),
+        'batch_size_train': trial.suggest_categorical('batch_size_train', [256, 512, 1024]),
+        'batch_size_test': trial.suggest_categorical('batch_size_test', [256, 512, 1024]),
         'epochs': 100
     }
     
@@ -80,9 +88,13 @@ def objective(trial, loaded_graph):
         num_classes=config['num_classes'],
         num_iterations=config['num_iterations']
     ).to(device)
+
+    benign_weight = loaded_class_weights[0]
+    ddos_weight = loaded_class_weights[1]
+    pos_weight = torch.tensor([ddos_weight / benign_weight], dtype=torch.float32).to(device)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     
     metrics = {
         'accuracy': torchmetrics.Accuracy(task="binary", threshold=0.5),
@@ -145,6 +157,10 @@ def main():
 
     loaded_graph = load_graph(args.graph_path)
 
+    loaded_class_weights = None
+    if args.class_weight_path:
+        loaded_class_weights = load_class_weight(args.class_weight_path)
+
     study = optuna.create_study(
         direction='maximize',
         sampler=TPESampler(seed=42),
@@ -154,7 +170,7 @@ def main():
         load_if_exists=True
     )
     
-    study.optimize(lambda t: objective(t, loaded_graph), n_trials=args.n_trials)
+    study.optimize(lambda t: objective(t, loaded_graph, loaded_class_weights), n_trials=args.n_trials)
     
     print("Best trial:")
     best_trial = study.best_trial

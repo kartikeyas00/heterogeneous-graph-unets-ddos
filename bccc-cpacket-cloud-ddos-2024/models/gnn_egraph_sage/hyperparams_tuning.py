@@ -45,7 +45,7 @@ validation_data_loaders_dict = {}
 
 def objective(trial, loaded_graph):
     config = {
-        'node_in_dim': 272,
+        'node_in_dim': 128,
         'edge_in_dim': 272,
         'hidden_dim': trial.suggest_categorical('hidden_dim', [64, 128, 256]),
         'num_classes': 1,
@@ -103,7 +103,7 @@ def objective(trial, loaded_graph):
             subgraph = subgraph.to(device)
             optimizer.zero_grad()
             
-            logits = model(subgraph, subgraph.ndata['feat'], subgraph.edata['feat'])
+            logits = model(subgraph)
             labels = subgraph.edata['label'].float().to(device)
             
             loss = criterion(logits.squeeze(), labels)
@@ -126,7 +126,7 @@ def objective(trial, loaded_graph):
             for edge_batches, subgraph in validation_dataloader:
                 subgraph = subgraph.to(device)
                 
-                logits = model(subgraph, subgraph.ndata['feat'], subgraph.edata['feat'])
+                logits = model(subgraph)
                 labels = subgraph.edata['label'].float().to(device)
                 
                 loss = criterion(logits.squeeze(), labels)
@@ -162,9 +162,9 @@ def main():
 
     loaded_graph = load_graph(args.graph_path)
     
-    not_sus_label_index = [i for i in range(loaded_graph.edata['label'].size()[0]) 
-                          if loaded_graph.edata['label'][i]!=2]
-    loaded_graph = loaded_graph.edge_subgraph(torch.tensor(not_sus_label_index), preserve_nodes=True)
+    # not_sus_label_index = [i for i in range(loaded_graph.edata['label'].size()[0]) 
+    #                       if loaded_graph.edata['label'][i]!=2]
+    # loaded_graph = loaded_graph.edge_subgraph(torch.tensor(not_sus_label_index), preserve_nodes=True)
 
     study = optuna.create_study(
         direction='maximize',

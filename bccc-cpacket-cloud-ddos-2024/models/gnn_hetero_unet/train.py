@@ -46,10 +46,9 @@ def train_epoch(epoch, train_dataloader, model, optimizer, criterion, device, lo
     
     for flow_nodes, sub_graph in train_dataloader:
         sub_graph = sub_graph.to(device)
-        host_features = sub_graph.nodes['host'].data['feat']
-        flow_features = sub_graph.nodes['flow'].data['feat']
+        features = sub_graph.ndata['feat']
         labels = sub_graph.ndata['label']['flow'].float().to(device)
-        logits = model(sub_graph, host_features, flow_features)
+        logits = model(sub_graph, features)
         
         loss = criterion(logits.squeeze(), labels)
         optimizer.zero_grad()
@@ -77,10 +76,9 @@ def evaluate(epoch, test_dataloader, model, criterion, accuracy_metric, precisio
     with torch.no_grad():
         for flow_nodes, sub_graph in test_dataloader:
             sub_graph = sub_graph.to(device)
-            host_features = sub_graph.nodes['host'].data['feat'].to(device)
-            flow_features = sub_graph.nodes['flow'].data['feat'].to(device)
+            features = sub_graph.ndata['feat']
             labels = sub_graph.ndata['label']['flow'].float().to(device)
-            logits = model(sub_graph, host_features, flow_features)
+            logits = model(sub_graph, features)
             loss = criterion(logits.squeeze(), labels)
             eval_loss += loss.item()
             
@@ -177,16 +175,16 @@ def main():
         train_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['train_mask']]
         test_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['test_mask']]
         
-        train_batches = [train_flow_nodes[j:j + hyperparams['flow_nodes_batch_size']]
-                        for j in range(0, len(train_flow_nodes), hyperparams['flow_nodes_batch_size'])]
-        train_batches = [batch for batch in train_batches if len(batch) == hyperparams['flow_nodes_batch_size']]
-        
-        test_batches = [test_flow_nodes[j:j + hyperparams['flow_nodes_batch_size']]
-                       for j in range(0, len(test_flow_nodes), hyperparams['flow_nodes_batch_size'])]
-        test_batches = [batch for batch in test_batches if len(batch) == hyperparams['flow_nodes_batch_size']]
-        
+        train_batches = [train_flow_nodes[j:j + hyperparams['flow_batch_size']]
+                        for j in range(0, len(train_flow_nodes), hyperparams['flow_batch_size'])]
+        train_batches = [batch for batch in train_batches if len(batch) == hyperparams['flow_batch_size']]
+
+        test_batches = [test_flow_nodes[j:j + hyperparams['flow_batch_size']]
+                       for j in range(0, len(test_flow_nodes), hyperparams['flow_batch_size'])]
+        test_batches = [batch for batch in test_batches if len(batch) == hyperparams['flow_batch_size']]
+
         train_dataloader = create_dataloader(g, train_batches, hyperparams['batch_size_train'], False)
-        test_dataloader = create_dataloader(g, test_batches, hyperparams['batch_size_test'], False)
+        test_dataloader = create_dataloader(g, test_batches, hyperparams['batch_size_validation'], False)
         
         best_f1 = 0
         epochs_no_improve = 0

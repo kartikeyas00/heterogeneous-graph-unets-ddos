@@ -20,11 +20,17 @@ def parse_args():
                    help="Directory to store Optuna logs & DB")
     p.add_argument("--graph-path", type=str, required=True,
                    help="Path to one fold's graph .pickle")
+    p.add_argument("--class-weight-path",        type=str, required=False, default=None,
+                   help="Path to one fold’s class weight .pickle")
     p.add_argument("--n-trials", type=int, default=200)
     p.add_argument("--study-name", type=str, default="e_graphsage")
     return p.parse_args()
 
 def load_graph(path):
+    with open(path, 'rb') as fp:
+        return pickle.load(fp)
+    
+def load_class_weight(path):
     with open(path, 'rb') as fp:
         return pickle.load(fp)
 
@@ -43,7 +49,7 @@ def create_validation_dataloader(g, config):
 train_data_loaders_dict = {}
 validation_data_loaders_dict = {}
 
-def objective(trial, loaded_graph):
+def objective(trial, loaded_graph, loaded_class_weights):
     config = {
         'node_in_dim': 128,
         'edge_in_dim': 77,
@@ -78,10 +84,14 @@ def objective(trial, loaded_graph):
         num_classes=config['num_classes'],
         num_layers=config['num_layers']
     ).to(device)
+
+    benign_weight = loaded_class_weights[0]
+    ddos_weight = loaded_class_weights[1]
+    pos_weight = torch.tensor([ddos_weight / benign_weight], dtype=torch.float32).to(device)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
-    criterion = nn.BCEWithLogitsLoss()
-    
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
     metrics = {
         'accuracy': torchmetrics.Accuracy(task="binary", threshold=0.5),
         'precision': torchmetrics.Precision(task="binary", threshold=0.5),
@@ -144,6 +154,11 @@ def main():
 
     loaded_graph = load_graph(args.graph_path)
 
+    # Load the class weights
+    loaded_class_weights = None
+    if args.class_weight_path:
+        loaded_class_weights = load_class_weight(args.class_weight_path)
+
     study = optuna.create_study(
         direction='maximize',
         sampler=TPESampler(seed=42),
@@ -153,7 +168,7 @@ def main():
         load_if_exists=True
     )
     
-    study.optimize(lambda t: objective(t, loaded_graph), n_trials=args.n_trials)
+    study.optimize(lambda t: objective(t, loaded_graph, loaded_class_weights), n_trials=args.n_trials)
     
     print("Best trial:")
     best_trial = study.best_trial

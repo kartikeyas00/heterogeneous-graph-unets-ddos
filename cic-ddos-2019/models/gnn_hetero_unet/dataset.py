@@ -145,7 +145,7 @@ class FlowNodeDataset(Dataset):
 
 
 
-def create_datalaoder(g, batched_flow_nodes, batch_size, shuffle, num_workers=0, max_connected_flows=30):
+def create_dataloader(g, batched_flow_nodes, batch_size, shuffle, num_workers=0, max_connected_flows=30):
     """
     Create a DataLoader for processing batches of flow nodes.
     

@@ -10,7 +10,7 @@ import logging
 import datetime
 import json
 import torchmetrics
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -33,6 +33,10 @@ def setup_logging(log_dir):
 def load_hyperparams(path):
     with open(path) as f:
         return json.load(f)
+    
+def load_class_weight(path):
+    with open(path, 'rb') as fp:
+        return pickle.load(fp)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -42,7 +46,13 @@ recall_metric = torchmetrics.Recall(task="binary",threshold=0.5).to(device)
 f1_metric = torchmetrics.F1Score(task="binary",threshold=0.5).to(device)
 confmat_metric = torchmetrics.ConfusionMatrix(task="binary", num_classes=2).to(device)
 
-def train(model, epoch, optimizer, criterion, train_dataloader):
+def train(model, epoch, optimizer, train_dataloader, class_weight):
+
+    benign_weight = class_weight[0]
+    ddos_weight = class_weight[1]
+    pos_weight = torch.tensor([ddos_weight / benign_weight], dtype=torch.float32).to(device)
+
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     model.train()
     epoch_loss = 0
     start_time = time.time()
@@ -70,7 +80,8 @@ def train(model, epoch, optimizer, criterion, train_dataloader):
     
     return epoch_loss
 
-def evaluate(model, epoch, criterion, test_dataloader):
+def evaluate(model, test_dataloader):
+    criterion = nn.BCEWithLogitsLoss()
     model.eval()
     eval_loss = 0
     accuracy_metric.reset()
@@ -151,7 +162,7 @@ def main():
         model.apply(init_weights)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=hyperparams['learning_rate'])
-        criterion = nn.BCEWithLogitsLoss()
+        
 
         accuracy_metric.reset()
         precision_metric.reset()
@@ -160,6 +171,8 @@ def main():
 
         with open(f"{args.graph_dir}/graph_fold_{i}.pickle", 'rb') as fp:
             g = pickle.load(fp)
+        
+        class_weight = load_class_weight(f"{args.graph_dir}/class_weights_fold_{i}.pickle")
 
         train_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['train_mask']]
         test_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['test_mask']]
@@ -170,8 +183,8 @@ def main():
         test_batches = [test_flow_nodes[i:i + hyperparams['flow_nodes_batch_size']] for i in range(0, len(test_flow_nodes), hyperparams['flow_nodes_batch_size'])]
         test_batches = [batch for batch in test_batches if len(batch) == hyperparams['flow_nodes_batch_size']]
 
-        train_dataloader = create_datalaoder(g, train_batches, hyperparams['batch_size_training'], False)
-        test_dataloader = create_datalaoder(g, test_batches, hyperparams['batch_size_validation'], False)
+        train_dataloader = create_dataloader(g, train_batches, hyperparams['batch_size_training'], False)
+        test_dataloader = create_dataloader(g, test_batches, hyperparams['batch_size_validation'], False)
 
         best_f1 = 0
         early_stopping_patience = args.patience
@@ -181,10 +194,10 @@ def main():
         for epoch in range(1, args.epochs + 1):
             epoch_start_time = time.time()
             
-            train_loss = train(model, epoch, optimizer, criterion, train_dataloader)
+            train_loss = train(model, epoch, optimizer, train_dataloader,class_weight)
             
             if epoch % 5 == 0:
-                acc, prec, rec, f1, eval_loss, tp, fp, fn, tn = evaluate(model, epoch, criterion, test_dataloader)
+                acc, prec, rec, f1, eval_loss, tp, fp, fn, tn = evaluate(model, test_dataloader)
                 
                 metrics_df = pd.concat([metrics_df, pd.DataFrame({
                     'fold': i,
@@ -225,12 +238,12 @@ def main():
             model.load_state_dict(torch.load(best_model_path))
             model.to(device)
             
-            final_acc, final_prec, final_rec, final_f1, final_eval_loss, final_tp, final_fp, final_fn, final_tn = evaluate(model, epoch, criterion, test_dataloader)
+            final_acc, final_prec, final_rec, final_f1, final_eval_loss, final_tp, final_fp, final_fn, final_tn = evaluate(model, test_dataloader)
             logging.info(f'Final Evaluation - Loss: {final_eval_loss:.4f}, Accuracy: {final_acc:.4f}, Precision: {final_prec:.4f}, Recall: {final_rec:.4f}, F1: {final_f1:.4f}')
             logging.info(f'Confusion Matrix - TP: {final_tp}, FP: {final_fp}, FN: {final_fn}, TN: {final_tn}')
         else:
             logging.info('No improvement observed during training. Using the last epoch for final evaluation.')
-            final_acc, final_prec, final_rec, final_f1, final_eval_loss, final_tp, final_fp, final_fn, final_tn = evaluate(model, epoch, criterion, test_dataloader)
+            final_acc, final_prec, final_rec, final_f1, final_eval_loss, final_tp, final_fp, final_fn, final_tn = evaluate(model, test_dataloader)
             logging.info(f'Final Evaluation - Loss: {final_eval_loss:.4f}, Accuracy: {final_acc:.4f}, Precision: {final_prec:.4f}, Recall: {final_rec:.4f}, F1: {final_f1:.4f}')
             logging.info(f'Confusion Matrix - TP: {final_tp}, FP: {final_fp}, FN: {final_fn}, TN: {final_tn}')
 

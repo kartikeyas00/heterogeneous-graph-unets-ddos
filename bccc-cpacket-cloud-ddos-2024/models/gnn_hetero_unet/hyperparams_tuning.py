@@ -102,14 +102,17 @@ def objective(trial, loaded_graph, loaded_class_weights, in_feats_dict, out_feat
         depth=config['depth'],
         pool_ratio=config['pool_ratio']
     ).to(device)
-    
-    benign_weight = loaded_class_weights[0]
-    ddos_weight = loaded_class_weights[1]
-    pos_weight = torch.tensor([ddos_weight / benign_weight], dtype=torch.float32).to(device)
+    if loaded_class_weights is not None:
+        benign_weight = loaded_class_weights[0]
+        ddos_weight = loaded_class_weights[1]
+        pos_weight = torch.tensor([ddos_weight / benign_weight], dtype=torch.float32).to(device)
+        criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    else:
+        criterion = nn.BCEWithLogitsLoss()
 
     # Set up optimizer and loss function
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    
     
     # Set up metrics
     metrics = {

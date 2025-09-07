@@ -53,7 +53,7 @@ class FlowNodeDataset(Dataset):
     
 
 
-def create_datalaoder(g, batched_flow_nodes, batch_size, shuffle, num_workers=4):
+def create_dataloader(g, batched_flow_nodes, batch_size, shuffle, num_workers=4):
     dataset = FlowNodeDataset(g, batched_flow_nodes, batch_size=batch_size, shuffle=shuffle)
     
     dataloader = DataLoader(

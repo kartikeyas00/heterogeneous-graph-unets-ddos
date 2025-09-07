@@ -12,7 +12,7 @@ from optuna.samplers import TPESampler
 from optuna.pruners import MedianPruner
 import time
 from model import GNN_NIDS
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -33,14 +33,14 @@ def create_train_dataloader(g, config):
     val_batches = [val_flow_nodes[i:i + config['flow_nodes_batch_size']] 
                    for i in range(0, len(val_flow_nodes), config['flow_nodes_batch_size'])]
     val_batches = [batch for batch in val_batches if len(batch) == config['flow_nodes_batch_size']]
-    return create_datalaoder(g, val_batches, config['batch_size_train'], False)
+    return create_dataloader(g, val_batches, config['batch_size_train'], False)
 
 def create_validation_dataloader(g, config):
     val_flow_nodes = g.nodes('flow')[g.nodes['flow'].data['val_mask']]
     val_batches = [val_flow_nodes[i:i + config['flow_nodes_batch_size']] 
                    for i in range(0, len(val_flow_nodes), config['flow_nodes_batch_size'])]
     val_batches = [batch for batch in val_batches if len(batch) == config['flow_nodes_batch_size']]
-    return create_datalaoder(g, val_batches, config['batch_size_test'], False)
+    return create_dataloader(g, val_batches, config['batch_size_test'], False)
 
 train_data_loaders_dict = {}
 validation_data_loaders_dict = {}

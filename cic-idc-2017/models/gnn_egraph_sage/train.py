@@ -140,8 +140,8 @@ def main():
         model = EGraphSAGE(
             node_in_dim=128, 
             edge_in_dim=77, 
-            hidden_dim=hyperparams['hidden_dim'], 
-            num_classes=hyperparams['num_classes'],
+            hidden_dim=hyperparams['hidden_size'], 
+            num_classes=1,
             num_layers=hyperparams['num_layers']
         ).to(device)
 

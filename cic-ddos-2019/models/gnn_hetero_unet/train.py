@@ -11,7 +11,7 @@ import json
 import torchmetrics
 from model import HeteroGraphUNet
 
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 
 def parse_args():

@@ -28,7 +28,6 @@ class EdgeBatchDataset(Dataset):
         for idx, i in enumerate(range(0, len(self.edge_batches), self.batch_size)):
             # Get batch of edges
             edge_batch = torch.cat(self.edge_batches[i:i+self.batch_size])
-            print(edge_batch)
             # Get source and destination nodes for these edges
             src_nodes, dst_nodes = self.graph.find_edges(edge_batch)
             

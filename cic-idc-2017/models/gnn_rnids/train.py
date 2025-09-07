@@ -10,7 +10,7 @@ import datetime
 import json
 import torchmetrics
 from model import GNN_NIDS
-from dataset import create_datalaoder
+from dataset import create_dataloader
 
 
 def parse_args():
@@ -174,8 +174,8 @@ def main():
         test_batches = [test_flow_nodes[i:i + hyperparams['flow_nodes_batch_size']] for i in range(0, len(test_flow_nodes), hyperparams['flow_nodes_batch_size'])]
         test_batches = [batch for batch in test_batches if len(batch) == hyperparams['flow_nodes_batch_size']]
 
-        train_dataloader = create_datalaoder(g, train_batches, hyperparams['batch_size_train'], False)
-        test_dataloader = create_datalaoder(g, test_batches, hyperparams['batch_size_test'], False)
+        train_dataloader = create_dataloader(g, train_batches, hyperparams['batch_size_train'], False)
+        test_dataloader = create_dataloader(g, test_batches, hyperparams['batch_size_test'], False)
 
         best_f1 = 0
         early_stopping_patience = args.patience
