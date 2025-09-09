@@ -74,7 +74,32 @@ def preprocess_data(config):
     preprocessing_configs = config.get('preprocessing', {})
     base_dir = Path(__file__).parent
     
+    # First run raw data preprocessing if enabled
+    raw_data_config = preprocessing_configs.get('raw_data', {})
+    if raw_data_config.get('enabled', False):
+        logging.info("Running raw data preprocessing...")
+        
+        raw_preprocess_dir = base_dir / "preprocess" / "raw_data"
+        
+        cmd = [
+            sys.executable, 
+            str(raw_preprocess_dir / "main.py"),
+            "--input-dir", raw_data_config['input_dir'],
+            "--output-file", raw_data_config['output_file']
+        ]
+        
+        success = run_command(cmd, "raw data preprocessing")
+        if not success:
+            logging.error("Raw data preprocessing failed")
+            return False
+            
+        logging.info("Completed raw data preprocessing")
+    
+    # Then run graph preprocessing steps
     for graph_type, graph_config in preprocessing_configs.items():
+        if graph_type == 'raw_data':  # Skip raw_data as it's handled above
+            continue
+            
         if not graph_config.get('enabled', False):
             logging.info(f"Skipping {graph_type} preprocessing (disabled)")
             continue

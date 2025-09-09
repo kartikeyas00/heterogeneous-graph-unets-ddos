@@ -1,71 +1,76 @@
 {
   "preprocessing": {
+    "raw_data": {
+      "enabled": true,
+      "input_dir": "path/to/cic-ids-2017/data/",
+      "output_file": "path/to/cic-ids-2017/features.csv"
+    },
     "host_connection_graph": {
       "enabled": true,
-      "input_path": "/path/to/cic-idc-2017/cleaned_ml_features/features.csv",
-      "output_dir": "/path/to/cic-idc-2017/host_connection_graph/normal/ip_as_hosts/no_added_malicious_ip/",
-      "class_ratio": 1.0,
+      "input_path": "path/to/cic-ids-2017/features.csv",
+      "output_dir": "/path/to/cic-ids-2017/graphs/host_connection_graph/",
+      "class_ratio": 10.0,
       "k_folds": 10,
-      "benign_label": "BENIGN"
+      "benign_label": "Benign"
     },
     "network_flow_graph": {
       "enabled": true,
-      "input_path": "/path/to/cic-idc-2017/cleaned_ml_features/features.csv",
-      "output_dir": "/path/to/cic-idc-2017/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/",
-      "class_ratio": 1.0,
+      "input_path":"path/to/features.csv",
+      "output_dir": "/path/to/cic-ids-2017/graphs/network_flow_graph/",
+      "class_ratio": 10.0,
       "k_folds": 10,
-      "benign_label": "BENIGN"
+      "benign_label": "Benign"
     }
   },
   "models": {
     "gnn_rnids": {
       "enabled": true,
       "hyperparameter_tuning": {
-        "optuna_dir": "/path/to/cic-idc-2017/hyperparams_tuning_logs/gnn_rnids",
-        "graph_path": "/path/to/cic-idc-2017/host_connection_graph/normal/ip_as_hosts/no_added_malicious_ip/graph_fold_0.pickle",
-        "n_trials": 200,
+        "optuna_dir": "/path/to/cic-ids-2017/hyperparams/gnn_rnids/",
+        "graph_path": "/path/to/cic-ids-2017/graphs/host_connection_graph/graph_fold_1.pickle",
+        "n_trials": 100,
         "study_name": "gnn_rnids_hyperopt"
       },
       "training": {
-        "graph_dir": "/path/to/cic-idc-2017/host_connection_graph/normal/ip_as_hosts/no_added_malicious_ip/",
-        "log_dir": "/path/to/cic-idc-2017/training_logs/gnn_rnids",
-        "epochs": 2000,
+        "graph_dir": "/path/to/cic-ids-2017/graphs/host_connection_graph/",
+        "log_dir": "/path/to/cic-ids-2017/training_logs/gnn_rnids",
+        "epochs": 1000,
         "k_folds": 10,
-        "patience": 100
+        "patience": 50
       }
     },
     "gnn_egraph_sage": {
       "enabled": true,
       "hyperparameter_tuning": {
-        "optuna_dir": "/path/to/cic-idc-2017/hyperparams_tuning_logs/gnn_egraph_sage",
-        "graph_path": "/path/to/cic-idc-2017/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/graph_fold_0.pickle",
-        "n_trials": 200,
+        "optuna_dir": "/path/to/cic-ids-2017/hyperparams/gnn_egraph_sage",
+        "graph_path": "/path/to/cic-ids-2017/graphs/network_flow_graph/graph_fold_1.pickle",
+        "n_trials": 100,
         "study_name": "gnn_egraph_sage_hyperopt"
       },
       "training": {
-        "graph_dir": "/path/to/cic-idc-2017/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/",
-        "log_dir": "/path/to/cic-idc-2017/training_logs/gnn_egraph_sage",
-        "epochs": 2000,
+        "graph_dir": "/path/to/cic-ids-2017/graphs/network_flow_graph/",
+        "log_dir": "/path/to/cic-ids-2017/training_logs/gnn_egraph_sage",
+        "epochs": 1000,
         "k_folds": 10,
-        "patience": 100
+        "patience": 50
       }
     },
     "gnn_hetero_unet": {
       "enabled": true,
       "hyperparameter_tuning": {
-        "optuna_dir": "/path/to/cic-idc-2017/hyperparams_tuning_logs/gnn_hetero_unet",
-        "graph_path": "/path/to/cic-idc-2017/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/graph_fold_0.pickle",
-        "n_trials": 200,
+        "optuna_dir": "/path/to/cic-ids-2017/hyperparams/gnn_hetero_unet",
+        "graph_path": "/path/to/cic-ids-2017/graphs/host_connection_graph/graph_fold_1.pickle",
+        "n_trials": 100,
         "study_name": "gnn_hetero_unet_hyperopt"
       },
       "training": {
-        "graph_dir": "/path/to/cic-idc-2017/network_flow_graph/normal/ip_port_as_hosts/no_added_malicious_ip/",
-        "log_dir": "/path/to/cic-idc-2017/training_logs/gnn_hetero_unet",
+        "graph_dir": "/path/to/cic-ids-2017/graphs/host_connection_graph/",
+        "log_dir": "/path/to/cic-ids-2017/training_logs/gnn_hetero_unet",
         "epochs": 1000,
         "k_folds": 10,
         "patience": 50
       }
     }
   },
-  "results_dir": "/path/to/cic-idc-2017/results"
+  "results_dir": "/path/to/cic-ids-2017/results"
 }
